@@ -21,6 +21,7 @@ from google.api_core import exceptions
 from google.auth import credentials as auth_credentials
 from google.protobuf import timestamp_pb2
 
+from google.cloud import aiplatform
 from google.cloud.aiplatform import base
 from google.cloud.aiplatform import gapic
 from google.cloud.aiplatform import pipeline_jobs
@@ -31,6 +32,10 @@ from google.cloud.aiplatform.metadata import execution
 from google.cloud.aiplatform.metadata import experiment_resources
 from google.cloud.aiplatform.metadata import experiment_run_resource
 from google.cloud.aiplatform.tensorboard import tensorboard_resource
+
+# from google.cloud.aiplatform._mlflow_plugin._vertex_mlflow_tracking import (
+#     _VertexMlflowTracking,
+# )
 
 _LOGGER = base.Logger(__name__)
 
@@ -239,6 +244,27 @@ class _ExperimentTracker:
 
         self._experiment = experiment
 
+    def _initialize_mlflow_plugin():
+        """Invoke the Vertex MLFlow plugin."""
+        import mlflow
+        from mlflow.tracking._tracking_service import utils as mlflow_tracking_utils
+        import entrypoints
+
+        if not entrypoints.get_group_all("mlflow.tracking_store"):
+            # the entrypoints defined in setup.py aren't found, manually set it
+            mlflow_tracking_utils._tracking_store_registry.register(
+                "vertex-mlflow-plugin", aiplatform._mlflow_plugin._vertex_mlflow_tracking._VertexMlflowTracking
+            )
+
+        mlflow.set_tracking_uri("vertex-mlflow-plugin://")
+
+        mlflow.autolog(
+            log_input_examples=False,
+            log_model_signatures=False,
+            log_models=False,
+            silent=False,  # using False for debugging
+        )
+
     def start_run(
         self,
         run: str,
@@ -310,6 +336,39 @@ class _ExperimentTracker:
             )
 
         return self._experiment_run
+
+    def autolog(self, disable=False):
+        """Enables autologging with specific configuration options.
+
+        Args:
+            disable (bool):
+                Optional. Whether to disable autologging. Defaults to False.
+                If set to True, this resets the MLFlow tracking URI to its
+                previous state before autologging was called.
+        Raises:
+            ValueError:
+                if experiment is not set. Or if run execution or metrics artifact is already created
+                but with a different schema.
+        """
+        try:
+            import mlflow
+        except ImportError:
+            raise ImportError(
+                "MLFlow is not installed. Please install MLFlow using pip install google-cloud-aiplatform[autologging] to use autologging in the Vertex SDK."
+            )
+
+        if not self._experiment:
+            raise ValueError(
+                "No experiment set. Make sure to call aiplatform.init(experiment='my-experiment') "
+                "before calling aiplatform.autolog()."
+            )
+
+        if disable:
+            mlflow.set_tracking_uri(self._existing_tracking_uri)
+        else:
+            self._existing_tracking_uri = mlflow.get_tracking_uri()
+
+            _ExperimentTracker._initialize_mlflow_plugin()
 
     def end_run(self, state: gapic.Execution.State = gapic.Execution.State.COMPLETE):
         """Ends the the current experiment run.

@@ -83,6 +83,9 @@ prediction_extra_require = [
 endpoint_extra_require = ["requests >= 2.28.1"]
 
 private_endpoints_extra_require = ["urllib3 >=1.21.1, <1.27", "requests >= 2.28.1"]
+
+autologging_extra_require = ["mlflow>=1.27.0,<=1.30.0"]
+
 full_extra_require = list(
     set(
         tensorboard_extra_require
@@ -96,6 +99,7 @@ full_extra_require = list(
         + vizier_extra_require
         + prediction_extra_require
         + private_endpoints_extra_require
+        + autologging_extra_require
     )
 )
 testing_extra_require = (
@@ -119,6 +123,7 @@ setuptools.setup(
         "console_scripts": [
             "tb-gcp-uploader=google.cloud.aiplatform.tensorboard.uploader_main:run_main"
         ],
+        "mlflow.tracking_store": "vertex-mlflow-plugin=google.cloud.aiplatform._mlflow_plugin._vertex_mlflow_tracking:VertexMlflowTracking",
     },
     namespace_packages=("google", "google.cloud"),
     author="Google LLC",

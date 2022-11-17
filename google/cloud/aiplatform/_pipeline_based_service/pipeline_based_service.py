@@ -391,13 +391,16 @@ class _VertexAiPipelineBasedService(base.VertexAiStatefulResource):
 
         for pipeline_execution in filtered_pipeline_executions:
             if "pipeline_job_resource_name" in pipeline_execution.metadata:
-                service_pipeline_job = cls(
-                    pipeline_execution.metadata["pipeline_job_resource_name"],
-                    project=project,
-                    location=location,
-                    credentials=credentials,
-                )
-                service_pipeline_jobs.append(service_pipeline_job)
+                try:
+                    service_pipeline_job = cls(
+                        pipeline_execution.metadata["pipeline_job_resource_name"],
+                        project=project,
+                        location=location,
+                        credentials=credentials,
+                    )
+                    service_pipeline_jobs.append(service_pipeline_job)
+                except ValueError:
+                    continue
 
         return service_pipeline_jobs
 
